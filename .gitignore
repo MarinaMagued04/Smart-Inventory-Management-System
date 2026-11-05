@@ -1,0 +1,24 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Environment / secrets
+.env
+*.pfx
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
