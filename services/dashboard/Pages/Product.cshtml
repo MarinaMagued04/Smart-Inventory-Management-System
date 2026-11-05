@@ -1,0 +1,198 @@
+@page "/Products/{id:int}"
+@model ProductModel
+@using System.Text.Json
+@{
+    ViewData["Title"] = Model.Product?.Name ?? "Product";
+    var p = Model.Product;
+    var r = Model.Report;
+
+    static string DaysAgo(DateTime utc)
+    {
+        var days = (int)(DateTime.UtcNow - utc).TotalDays;
+        return days switch { 0 => "today", 1 => "1 day ago", _ => $"{days} days ago" };
+    }
+}
+
+<p><a asp-page="/Index" class="back">&larr; Back to overview</a></p>
+
+@if (Model.Error is not null)
+{
+    <div class="banner error">@Model.Error</div>
+}
+
+@if (p is not null && r is not null)
+{
+    <div class="page-head">
+        <div>
+            <h1>@p.Name</h1>
+            <div class="muted">SKU: @p.Sku &middot; Min threshold: @p.MinThreshold</div>
+        </div>
+        @if (p.Quantity == 0)
+        {
+            <span class="badge danger big">Out of stock</span>
+        }
+        else if (p.IsLowStock)
+        {
+            <span class="badge warn big">Low stock</span>
+        }
+        else
+        {
+            <span class="badge ok big">OK</span>
+        }
+    </div>
+
+    @* ---------- How did it get here? ---------- *@
+    @if (r.BecameOutOfStockAt is not null || r.BecameLowStockAt is not null)
+    {
+        <div class="banner @(p.Quantity == 0 ? "error" : "warn")">
+            @if (r.BecameLowStockAt is not null)
+            {
+                <div>Reached the low-stock threshold (@p.MinThreshold) on <strong>@r.BecameLowStockAt.Value.ToString("yyyy-MM-dd HH:mm")</strong> UTC.</div>
+            }
+            @if (r.BecameOutOfStockAt is not null)
+            {
+                <div>Ran out of stock on <strong>@r.BecameOutOfStockAt.Value.ToString("yyyy-MM-dd HH:mm")</strong> UTC
+                    (@DaysAgo(r.BecameOutOfStockAt.Value)).</div>
+            }
+        </div>
+    }
+
+    @* ---------- KPI cards ---------- *@
+    <section class="cards">
+        <div class="card">
+            <div class="card-label">Quantity now</div>
+            <div class="card-value">@p.Quantity</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Quantity @r.Days days ago</div>
+            <div class="card-value">@r.QuantityAtStart</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Units out (@r.Days days)</div>
+            <div class="card-value">@r.TotalOut</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Units restocked (@r.Days days)</div>
+            <div class="card-value">@r.TotalIn</div>
+        </div>
+        <div class="card">
+            <div class="card-label">Avg out / day (last 7 days)</div>
+            <div class="card-value">@r.AvgDailyOutLast7.ToString("0.#")</div>
+        </div>
+        <div class="card @(p.Quantity == 0 ? "danger" : r.DaysUntilOutOfStock < 7 ? "warn" : "")">
+            <div class="card-label">Estimated out of stock</div>
+            <div class="card-value small">
+                @if (p.Quantity == 0)
+                {
+                    <text>Already out</text>
+                }
+                else if (r.DaysUntilOutOfStock is null)
+                {
+                    <text>No recent usage</text>
+                }
+                else
+                {
+                    var daysLeft = (int)Math.Floor(r.DaysUntilOutOfStock.Value);
+                    <text>@(daysLeft < 1 ? "Less than a day" : $"~{daysLeft} {(daysLeft == 1 ? "day" : "days")}")</text>
+                    <div class="card-sub">around @r.EstimatedOutOfStockDate?.ToString("yyyy-MM-dd")</div>
+                }
+            </div>
+        </div>
+    </section>
+
+    @* ---------- Charts ---------- *@
+    <div class="chart-grid">
+        <div class="panel">
+            <h2>Quantity over the last @r.Days days</h2>
+            <div class="chart-box"><canvas id="qtyChart"></canvas></div>
+        </div>
+        <div class="panel">
+            <h2>Units out per day</h2>
+            @if (r.WorstDay is not null)
+            {
+                <div class="muted small-text">Highest day: @r.WorstDay.Date.ToString("yyyy-MM-dd") (@r.WorstDay.UnitsOut units)</div>
+            }
+            <div class="chart-box"><canvas id="outChart"></canvas></div>
+        </div>
+    </div>
+
+    @* ---------- Movements table ---------- *@
+    <h2>Stock movements (last @r.Days days)</h2>
+    @if (Model.Movements.Count == 0)
+    {
+        <p class="muted">No movements in this period.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Date (UTC)</th>
+                    <th>Type</th>
+                    <th class="num">Change</th>
+                    <th class="num">Before</th>
+                    <th class="num">After</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var m in Model.Movements)
+                {
+                    <tr class="@(m.QuantityAfter == 0 ? "row-danger" : m.QuantityAfter <= p.MinThreshold ? "row-warn" : "")">
+                        <td>@m.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@m.Type</td>
+                        <td class="num @(m.Change < 0 ? "neg" : "pos")">@(m.Change > 0 ? "+" : "")@m.Change</td>
+                        <td class="num">@m.QuantityBefore</td>
+                        <td class="num">@m.QuantityAfter</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    // Data for the charts. JsonSerializer escapes HTML characters, so it is safe inside <script>.
+    var labels = JsonSerializer.Serialize(r.Daily.Select(d => d.Date.ToString("MM-dd")));
+    var quantities = JsonSerializer.Serialize(r.Daily.Select(d => d.EndOfDayQuantity));
+    var unitsOut = JsonSerializer.Serialize(r.Daily.Select(d => d.UnitsOut));
+
+    <script src="~/lib/chartjs/chart.umd.min.js"></script>
+    <script>
+        (function () {
+            const labels = @Html.Raw(labels);
+            const quantities = @Html.Raw(quantities);
+            const unitsOut = @Html.Raw(unitsOut);
+            const threshold = @p.MinThreshold;
+
+            const common = {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+            };
+
+            new Chart(document.getElementById('qtyChart'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Quantity (end of day)', data: quantities, borderColor: '#2563eb',
+                          backgroundColor: 'rgba(37,99,235,0.08)', fill: true, tension: 0.25, pointRadius: 2 },
+                        { label: 'Min threshold', data: labels.map(() => threshold), borderColor: '#b45309',
+                          borderDash: [6, 4], pointRadius: 0, fill: false }
+                    ]
+                },
+                options: common
+            });
+
+            new Chart(document.getElementById('outChart'), {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Units out', data: unitsOut, backgroundColor: '#ef4444', borderRadius: 3 }
+                    ]
+                },
+                options: { ...common, plugins: { legend: { display: false } } }
+            });
+        })();
+    </script>
+}

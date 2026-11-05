@@ -1,0 +1,103 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Overview";
+}
+
+<h1>Inventory Overview</h1>
+
+@if (Model.Message is not null)
+{
+    <div class="banner info">@Model.Message</div>
+}
+
+@if (Model.InventoryError is not null)
+{
+    <div class="banner error">@Model.InventoryError</div>
+}
+@if (Model.AlertError is not null)
+{
+    <div class="banner error">@Model.AlertError</div>
+}
+
+<section class="cards">
+    <div class="card">
+        <div class="card-label">Products</div>
+        <div class="card-value">@Model.TotalProducts</div>
+    </div>
+    <div class="card">
+        <div class="card-label">Units in stock</div>
+        <div class="card-value">@Model.TotalUnits</div>
+    </div>
+    <div class="card warn">
+        <div class="card-label">Low stock</div>
+        <div class="card-value">@Model.LowStockCount</div>
+    </div>
+    <div class="card danger">
+        <div class="card-label">Out of stock</div>
+        <div class="card-value">@Model.OutOfStockCount</div>
+    </div>
+    <a class="card link" asp-page="/Alerts">
+        <div class="card-label">Active alerts</div>
+        <div class="card-value">@Model.ActiveAlerts.Count</div>
+    </a>
+</section>
+
+<h2>Active Alerts</h2>
+
+@if (Model.ActiveAlerts.Count == 0 && Model.AlertError is null)
+{
+    <p class="muted">No active alerts. All stock levels are healthy.</p>
+}
+else if (Model.ActiveAlerts.Count > 0)
+{
+    <partial name="_AlertsTable" model="Model.ActiveAlerts" />
+}
+
+<h2>Products</h2>
+
+@if (Model.Products.Count == 0 && Model.InventoryError is null)
+{
+    <p class="muted">No products found.</p>
+}
+else if (Model.Products.Count > 0)
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Name</th>
+                <th class="num">Quantity</th>
+                <th class="num">Min threshold</th>
+                <th>Status</th>
+                <th>Last updated (UTC)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in Model.Products)
+            {
+                <tr class="@(p.Quantity == 0 ? "row-danger" : p.IsLowStock ? "row-warn" : "")">
+                    <td>@p.Sku</td>
+                    <td><a asp-page="/Product" asp-route-id="@p.Id">@p.Name</a></td>
+                    <td class="num">@p.Quantity</td>
+                    <td class="num">@p.MinThreshold</td>
+                    <td>
+                        @if (p.Quantity == 0)
+                        {
+                            <span class="badge danger">Out of stock</span>
+                        }
+                        else if (p.IsLowStock)
+                        {
+                            <span class="badge warn">Low stock</span>
+                        }
+                        else
+                        {
+                            <span class="badge ok">OK</span>
+                        }
+                    </td>
+                    <td>@p.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

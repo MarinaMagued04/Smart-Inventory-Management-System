@@ -1,0 +1,25 @@
+@page
+@model AlertsModel
+@{
+    ViewData["Title"] = "Alerts";
+}
+
+<h1>Low Stock Alerts</h1>
+
+@if (Model.Message is not null)
+{
+    <div class="banner info">@Model.Message</div>
+}
+@if (Model.Error is not null)
+{
+    <div class="banner error">@Model.Error</div>
+}
+
+@if (Model.ActiveAlerts.Count == 0 && Model.Error is null)
+{
+    <p class="muted">No active alerts. All stock levels are healthy.</p>
+}
+else if (Model.ActiveAlerts.Count > 0)
+{
+    <partial name="_AlertsTable" model="Model.ActiveAlerts" />
+}

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Smart Inventory</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">Smart Inventory</div>
+        <nav>
+            <a asp-page="/Index">Overview</a>
+            <a asp-page="/Alerts">Alerts</a>
+        </nav>
+    </header>
+
+    <main class="container">
+        @RenderBody()
+    </main>
+
+    <footer class="footer">Smart Inventory Management System &middot; Dashboard Service</footer>
+</body>
+</html>

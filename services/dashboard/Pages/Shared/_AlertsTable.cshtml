@@ -1,0 +1,35 @@
+@model List<Alert>
+
+@* Shared alerts table, used on the Overview page and the Alerts page.
+   The Acknowledge form posts to the current page, so each page that uses
+   this partial must have an OnPostAcknowledgeAsync handler. *@
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th class="num">Quantity</th>
+            <th class="num">Threshold</th>
+            <th>Created (UTC)</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var a in Model)
+        {
+            <tr class="@(a.Quantity == 0 ? "row-danger" : "row-warn")">
+                <td>@a.Id</td>
+                <td><a asp-page="/Product" asp-route-id="@a.ProductId">@a.ProductName</a></td>
+                <td class="num">@a.Quantity</td>
+                <td class="num">@a.Threshold</td>
+                <td>@a.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                <td>
+                    <form method="post" asp-page-handler="Acknowledge" asp-route-id="@a.Id">
+                        <button type="submit" class="btn">Acknowledge</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
