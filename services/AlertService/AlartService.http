@@ -1,0 +1,6 @@
+@AlartService_HostAddress = http://localhost:5276
+
+GET {{AlartService_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
