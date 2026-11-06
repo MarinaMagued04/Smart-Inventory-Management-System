@@ -12,10 +12,10 @@ public class MockInventoryClient : IInventoryClient
     public Task<Product?> GetProductAsync(int id, CancellationToken ct = default) =>
         Task.FromResult(MockStore.Products.FirstOrDefault(p => p.Id == id));
 
-    public Task<List<StockMovement>> GetMovementsAsync(int productId, int days, CancellationToken ct = default)
+    public Task<List<StockMovement>> GetMovementsAsync(Product product, int days, CancellationToken ct = default)
     {
         var from = DateTime.UtcNow.AddDays(-days);
-        var list = MockStore.Movements.TryGetValue(productId, out var all)
+        var list = MockStore.Movements.TryGetValue(product.Id, out var all)
             ? all.Where(m => m.CreatedAt >= from).ToList()
             : [];
         return Task.FromResult(list);
@@ -65,13 +65,13 @@ internal static class MockHistory
             {
                 // Split the day's sales into 1-2 transactions
                 var first = sold > 1 && rnd.Next(2) == 0 ? rnd.Next(1, sold) : sold;
-                events.Add((day.AddHours(rnd.Next(9, 14)).AddMinutes(rnd.Next(60)), "sale", -first));
+                events.Add((day.AddHours(rnd.Next(9, 14)).AddMinutes(rnd.Next(60)), "stock-out", -first));
                 if (sold - first > 0)
-                    events.Add((day.AddHours(rnd.Next(14, 20)).AddMinutes(rnd.Next(60)), "sale", -(sold - first)));
+                    events.Add((day.AddHours(rnd.Next(14, 20)).AddMinutes(rnd.Next(60)), "stock-out", -(sold - first)));
             }
 
             if (daysAgo == restockDaysAgo)
-                events.Add((day.AddHours(8), "restock", restockAmount));
+                events.Add((day.AddHours(8), "stock-in", restockAmount));
 
             // Walk the day's events from latest to earliest
             foreach (var e in events.Where(e => e.At <= now).OrderByDescending(e => e.At))
@@ -105,14 +105,11 @@ internal static class MockStore
     public static readonly object Lock = new();
 
     // Keep the fake data consistent with the generated history:
-    // product "last updated" = last movement, alert "created" = when it crossed the threshold.
+    // alert "created" = when the product crossed the threshold.
     static MockStore()
     {
         foreach (var p in Products)
-        {
-            var moves = Movements[p.Id];
-            if (moves.Count > 0) p.UpdatedAt = moves[^1].CreatedAt;
-        }
+            p.CreatedAt = DateTime.UtcNow.AddDays(-60);
 
         foreach (var a in Alerts)
         {
@@ -123,11 +120,11 @@ internal static class MockStore
 
     public static readonly List<Product> Products =
     [
-        new() { Id = 1, Name = "Laptop Dell XPS 13", Sku = "LAP-001", Quantity = 25, MinThreshold = 5,  UpdatedAt = DateTime.UtcNow.AddHours(-2) },
-        new() { Id = 2, Name = "Wireless Mouse",     Sku = "ACC-014", Quantity = 3,  MinThreshold = 10, UpdatedAt = DateTime.UtcNow.AddMinutes(-30) },
-        new() { Id = 3, Name = "USB-C Cable 1m",     Sku = "ACC-021", Quantity = 0,  MinThreshold = 20, UpdatedAt = DateTime.UtcNow.AddMinutes(-5) },
-        new() { Id = 4, Name = "Monitor 27 inch",    Sku = "MON-007", Quantity = 12, MinThreshold = 4,  UpdatedAt = DateTime.UtcNow.AddDays(-1) },
-        new() { Id = 5, Name = "Mechanical Keyboard",Sku = "ACC-033", Quantity = 7,  MinThreshold = 8,  UpdatedAt = DateTime.UtcNow.AddHours(-6) },
+        new() { Id = 1, Name = "Laptop Dell XPS 13", Sku = "LAP-001", Quantity = 25, MinThreshold = 5 },
+        new() { Id = 2, Name = "Wireless Mouse",     Sku = "ACC-014", Quantity = 3,  MinThreshold = 10 },
+        new() { Id = 3, Name = "USB-C Cable 1m",     Sku = "ACC-021", Quantity = 0,  MinThreshold = 20 },
+        new() { Id = 4, Name = "Monitor 27 inch",    Sku = "MON-007", Quantity = 12, MinThreshold = 4 },
+        new() { Id = 5, Name = "Mechanical Keyboard",Sku = "ACC-033", Quantity = 7,  MinThreshold = 8 },
     ];
 
     // 30 days of fake stock history per product, ending at the product's current quantity.

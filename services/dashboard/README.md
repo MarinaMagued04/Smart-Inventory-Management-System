@@ -23,24 +23,14 @@ Built with ASP.NET Core 8 (Razor Pages).
 
 ## APIs this service depends on
 
-Inventory service:
-- `GET /api/products` → `[{ id, name, sku, quantity, minThreshold, updatedAt }]`
-- `GET /api/products/{id}` → `{ id, name, sku, quantity, minThreshold, updatedAt }` (404 if not found)
-- `GET /api/products/{id}/movements?days=30` → stock movements in the last N days:
-  ```json
-  [
-    {
-      "id": 1,
-      "productId": 2,
-      "type": "sale",            // "sale" | "restock" | "adjustment"
-      "change": -5,              // negative = out, positive = in
-      "quantityBefore": 8,
-      "quantityAfter": 3,
-      "createdAt": "2026-11-04T10:30:00Z"   // UTC
-    }
-  ]
-  ```
-  The Inventory service must save one movement row every time a product's quantity changes.
+Inventory service (Ouda's `inventory-service`):
+- `GET /api/products` → `[{ id, name, sku, quantity, minStockLevel, createdAt, ... }]`
+- `GET /api/products/{id}` → one product (404 if not found)
+- `GET /api/products/{id}/transactions` → `[{ id, productId, transactionType, quantity, createdAt }]`
+  - `transactionType` is `"IN"` or `"OUT"`, `quantity` is always positive.
+  - The dashboard works out the quantity before and after each transaction itself,
+    starting from the product's current quantity and walking back.
+  - It shows the last 30 days.
 
 Alert service:
 - `GET /api/alerts?status=active` → `[{ id, productId, productName, quantity, threshold, createdAt, status }]`

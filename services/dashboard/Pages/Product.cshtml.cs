@@ -23,7 +23,7 @@ public class ProductModel(IInventoryClient inventory, ILogger<ProductModel> logg
             Product = await inventory.GetProductAsync(id, ct);
             if (Product is null) return NotFound();
 
-            Movements = (await inventory.GetMovementsAsync(id, PeriodDays, ct))
+            Movements = (await inventory.GetMovementsAsync(Product, PeriodDays, ct))
                 .OrderByDescending(m => m.CreatedAt)
                 .ToList();
             Report = StockStatistics.Build(Product, Movements, PeriodDays, DateTime.UtcNow);

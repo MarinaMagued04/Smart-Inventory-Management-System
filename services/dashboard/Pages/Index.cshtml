@@ -70,7 +70,7 @@ else if (Model.Products.Count > 0)
                 <th class="num">Quantity</th>
                 <th class="num">Min threshold</th>
                 <th>Status</th>
-                <th>Last updated (UTC)</th>
+                <th>Added (UTC)</th>
             </tr>
         </thead>
         <tbody>
@@ -95,7 +95,7 @@ else if (Model.Products.Count > 0)
                             <span class="badge ok">OK</span>
                         }
                     </td>
-                    <td>@p.UpdatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                    <td>@p.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                 </tr>
             }
         </tbody>
