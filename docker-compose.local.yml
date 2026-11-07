@@ -1,0 +1,79 @@
+# Local test only: Dashboard + Alert + Inventory + PostgreSQL.
+# The official docker-compose.yml is Marina's part; this file is just for local testing.
+# Run from the repo root:  docker compose -f docker-compose.local.yml up --build
+
+services:
+  # PostgreSQL database for the Inventory service
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: inventorydb
+    volumes:
+      - inventory-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d inventorydb"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - inventory-net
+
+  # One-time job: creates the Inventory tables (EF Core migrations), then exits
+  migrate:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    working_dir: /src
+    volumes:
+      - ./inventory-service:/src
+    command:
+      - bash
+      - -c
+      - >-
+        dotnet restore &&
+        (dotnet tool install --global dotnet-ef || true) &&
+        /root/.dotnet/tools/dotnet-ef database update
+        --connection 'Host=db;Port=5432;Database=inventorydb;Username=postgres;Password=postgres'
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - inventory-net
+
+  inventory:
+    build: ./inventory-service
+    ports:
+      - "5001:8080"
+    environment:
+      ConnectionStrings__InventoryDb: Host=db;Port=5432;Database=inventorydb;Username=postgres;Password=postgres
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - inventory-net
+
+  alert:
+    build: ./services/AlertService
+    ports:
+      - "5002:8080"
+    networks:
+      - inventory-net
+
+  dashboard:
+    build: ./services/dashboard
+    ports:
+      - "5000:8080"
+    environment:
+      Services__InventoryUrl: http://inventory:8080
+      Services__AlertUrl: http://alert:8080
+    depends_on:
+      - inventory
+      - alert
+    networks:
+      - inventory-net
+
+networks:
+  inventory-net:
+
+volumes:
+  inventory-data:
